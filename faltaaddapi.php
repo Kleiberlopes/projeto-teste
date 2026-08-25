@@ -148,10 +148,15 @@ elseif ($primeiro == 3) $bandeira = 'amex';
 // ======================== CAPTCHA ========================
 $token = $_GET['token'] ?? ($argv[2] ?? null);
 
-// Validar token
+// Validar e resolver token automaticamente
 if (empty($token)) {
-    echo "⚠️ Aviso: Token de recaptcha não fornecido. Usando token teste.\n";
-    $token = 'TEST_TOKEN_MOCK';
+    echo "🔄 Resolvendo captcha automaticamente...\n";
+    $token = getCaptchaToken($apiKey, $websiteUrl, $websiteKey);
+    if (!$token) {
+        echo "❌ Erro: Falha ao resolver captcha. Verifique sua chave de API.\n";
+        exit;
+    }
+    echo "✅ Captcha resolvido com sucesso!\n";
 }
 
 // ======================== COOKIE ========================
@@ -180,6 +185,7 @@ curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar home\n";
+    if (file_exists($cookieFile)) unlink($cookieFile);
     exit;
 }
 
@@ -190,6 +196,7 @@ curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar produto\n";
+    if (file_exists($cookieFile)) unlink($cookieFile);
     exit;
 }
 
@@ -222,6 +229,7 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
 $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao realizar cadastro\n";
+    if (file_exists($cookieFile)) unlink($cookieFile);
     exit;
 }
 
@@ -232,6 +240,7 @@ curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao adicionar ao carrinho\n";
+    if (file_exists($cookieFile)) unlink($cookieFile);
     exit;
 }
 
@@ -242,6 +251,7 @@ curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar carrinho\n";
+    if (file_exists($cookieFile)) unlink($cookieFile);
     exit;
 }
 
@@ -252,6 +262,7 @@ curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar checkout\n";
+    if (file_exists($cookieFile)) unlink($cookieFile);
     exit;
 }
 
@@ -259,6 +270,7 @@ if (!$response) {
 $process_nonce = buscar($response, 'name="woocommerce-process-checkout-nonce" value="', '"');
 if (!$process_nonce) {
     echo "❌ Erro: Nonce de checkout não encontrado\n";
+    if (file_exists($cookieFile)) unlink($cookieFile);
     exit;
 }
 
