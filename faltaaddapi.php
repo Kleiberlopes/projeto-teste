@@ -122,7 +122,10 @@ $cpf = gerarCPF();
 // Aceitar via GET, POST ou CLI
 $lista = $_GET['lista'] ?? $_POST['lista'] ?? ($argv[1] ?? '');
 
-// Se não houver dados, retornar JSON ou exibir mensagem
+// Configurar header JSON para TODAS as respostas
+header('Content-Type: application/json; charset=utf-8');
+
+// Se não houver dados, retornar JSON
 if (empty($lista)) {
     if (php_sapi_name() === 'cli') {
         echo "❌ Erro: Dados do cartão incompletos. Formato: CC:MES:ANO:CVV\n";
@@ -130,7 +133,6 @@ if (empty($lista)) {
         exit(1);
     } else {
         http_response_code(400);
-        header('Content-Type: application/json');
         echo json_encode(['erro' => 'Parâmetro lista é obrigatório. Formato: CC:MES:ANO:CVV']);
         exit;
     }
@@ -149,7 +151,6 @@ if (empty($cc) || empty($mes) || empty($ano) || empty($cvv)) {
         exit(1);
     } else {
         http_response_code(400);
-        header('Content-Type: application/json');
         echo json_encode(['erro' => 'Dados do cartão incompletos. Formato: CC:MES:ANO:CVV']);
         exit;
     }
@@ -176,8 +177,14 @@ if (empty($token)) {
     echo "🔄 Resolvendo captcha automaticamente...\n";
     $token = getCaptchaToken($apiKey, $websiteUrl, $websiteKey);
     if (!$token) {
-        echo "❌ Erro: Falha ao resolver captcha. Verifique sua chave de API.\n";
-        exit(1);
+        if (php_sapi_name() !== 'cli') {
+            http_response_code(500);
+            echo json_encode(['erro' => 'Falha ao resolver captcha. Verifique sua chave de API.']);
+            exit;
+        } else {
+            echo "❌ Erro: Falha ao resolver captcha. Verifique sua chave de API.\n";
+            exit(1);
+        }
     }
     echo "✅ Captcha resolvido com sucesso!\n";
 }
@@ -209,6 +216,10 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar home\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+        echo json_encode(['erro' => 'Erro ao acessar home']);
+    }
     exit(1);
 }
 
@@ -220,6 +231,10 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar produto\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+        echo json_encode(['erro' => 'Erro ao acessar produto']);
+    }
     exit(1);
 }
 
@@ -253,6 +268,10 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao realizar cadastro\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+        echo json_encode(['erro' => 'Erro ao realizar cadastro']);
+    }
     exit(1);
 }
 
@@ -264,6 +283,10 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao adicionar ao carrinho\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+        echo json_encode(['erro' => 'Erro ao adicionar ao carrinho']);
+    }
     exit(1);
 }
 
@@ -275,6 +298,10 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar carrinho\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+        echo json_encode(['erro' => 'Erro ao acessar carrinho']);
+    }
     exit(1);
 }
 
@@ -286,6 +313,10 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar checkout\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+        echo json_encode(['erro' => 'Erro ao acessar checkout']);
+    }
     exit(1);
 }
 
@@ -294,6 +325,10 @@ $process_nonce = buscar($response, 'name="woocommerce-process-checkout-nonce" va
 if (!$process_nonce) {
     echo "❌ Erro: Nonce de checkout não encontrado\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+        echo json_encode(['erro' => 'Nonce de checkout não encontrado']);
+    }
     exit(1);
 }
 
@@ -377,7 +412,6 @@ echo str_repeat("=", 50) . "\n";
 
 // Retornar JSON se for requisição web
 if (php_sapi_name() !== 'cli') {
-    header('Content-Type: application/json');
     echo json_encode($resultado);
 }
 
