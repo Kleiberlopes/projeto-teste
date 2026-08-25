@@ -16,6 +16,8 @@ COPY faltaaddapi.php /app/
 # Definir permissões
 RUN chmod +x /app/faltaaddapi.php
 
-# Comando padrão - executar o script
-ENTRYPOINT ["php", "/app/faltaaddapi.php"]
-CMD []
+# Expor porta 8000 para servidor web
+EXPOSE 8000
+
+# Comando padrão - executar como servidor web
+CMD ["php", "-S", "0.0.0.0:8000"]
