@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processador de Cartões</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .input-row.full {
+            grid-template-columns: 1fr;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            grid-column: 1 / -1;
+        }
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-process {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-process:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-process:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-clear {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-clear:hover {
+            background: #e0e0e0;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input[type="checkbox"] {
+            width: auto;
+            padding: 0;
+        }
+        .checkbox-group label {
+            margin-bottom: 0;
+        }
+        .results {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+            display: none;
+        }
+        .results.show {
+            display: block;
+        }
+        .result-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .status-approved {
+            color: #27ae60;
+            font-weight: 600;
+        }
+        .status-declined {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+        .status-processing {
+            color: #f39c12;
+            font-weight: 600;
+        }
+        .progress {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin: 10px 0;
+            overflow: hidden;
+            display: none;
+        }
+        .progress.show {
+            display: block;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            animation: progress 0.3s ease;
+        }
+        @keyframes progress {
+            from { width: 0%; }
+            to { width: 100%; }
+        }
+        .loader {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #667eea;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #2c3e50;
+        }
+        .error-box {
+            background: #fadbd8;
+            border-left: 4px solid #e74c3c;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #c0392b;
+        }
+        .success-box {
+            background: #d5f4e6;
+            border-left: 4px solid #27ae60;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #196f3d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Processador de Cartões</h1>
+        <p class="subtitle">Insira BINs para gerar e processar cartões de teste</p>
+
+        <div class="info-box">
+            <strong>ℹ️ Como usar:</strong> Cole uma lista de BINs (um por linha) ou no formato CC:MES:ANO:CVV
+        </div>
+
+        <form id="processorForm">
+            <div class="form-group">
+                <label for="bins">Lista de BINs ou Cartões:</label>
+                <textarea id="bins" placeholder="5500000000000004
+4532000000000000
+3700000000000000
+
+Ou no formato completo:
+5500000000000004:12:2025:123
+4532000000000000:06:2026:456" required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="quantity">Quantidade de cartões por BIN:</label>
+                <input type="number" id="quantity" value="5" min="1" max="50">
+            </div>
+
+            <div class="form-group">
+                <label for="years">Anos de Validade (formato: 2025,2026,2027):</label>
+                <input type="text" id="years" value="2025,2026,2027" placeholder="2025,2026,2027">
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="autoProcess" checked>
+                <label for="autoProcess">Processar cartões automaticamente?</label>
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="btn-process">
+                    <span id="btnText">Gerar e Processar</span>
+                </button>
+                <button type="button" class="btn-clear" onclick="clearForm()">Limpar</button>
+            </div>
+
+            <div class="progress" id="progress">
+                <div class="progress-bar"></div>
+            </div>
+        </form>
+
+        <div class="results" id="results">
+            <h3 style="margin-bottom: 15px; color: #333;">📊 Resultados:</h3>
+            <div id="resultsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('processorForm');
+        const binsInput = document.getElementById('bins');
+        const quantityInput = document.getElementById('quantity');
+        const yearsInput = document.getElementById('years');
+        const autoProcessCheckbox = document.getElementById('autoProcess');
+        const resultsDiv = document.getElementById('results');
+        const resultsList = document.getElementById('resultsList');
+        const progressDiv = document.getElementById('progress');
+        const btnText = document.getElementById('btnText');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await processCards();
+        });
+
+        function clearForm() {
+            form.reset();
+            resultsDiv.classList.remove('show');
+            resultsList.innerHTML = '';
+            quantityInput.value = 5;
+            yearsInput.value = '2025,2026,2027';
+            autoProcessCheckbox.checked = true;
+        }
+
+        function generateCards(bin, quantity, years) {
+            const cards = [];
+            const yearArray = years.split(',').map(y => y.trim());
+
+            for (let i = 0; i < quantity; i++) {
+                let cardNumber = bin;
+
+                // Se o BIN tem menos de 16 dígitos, completar com números aleatórios
+                if (cardNumber.length < 16) {
+                    const remaining = 16 - cardNumber.length;
+                    for (let j = 0; j < remaining; j++) {
+                        cardNumber += Math.floor(Math.random() * 10);
+                    }
+                }
+
+                // Gerar mês (01-12)
+                const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+
+                // Selecionar ano aleatório
+                const year = yearArray[Math.floor(Math.random() * yearArray.length)];
+
+                // Gerar CVV (3 dígitos)
+                const cvv = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+
+                cards.push({
+                    cc: cardNumber,
+                    mes: month,
+                    ano: year,
+                    cvv: cvv,
+                    formato: `${cardNumber}:${month}:${year}:${cvv}`
+                });
+            }
+
+            return cards;
+        }
+
+        async function processCards() {
+            const binsText = binsInput.value.trim();
+            if (!binsText) {
+                alert('Por favor, insira pelo menos um BIN ou cartão');
+                return;
+            }
+
+            const quantity = parseInt(quantityInput.value);
+            const years = yearsInput.value;
+            const autoProcess = autoProcessCheckbox.checked;
+
+            const lines = binsText.split('\n').map(l => l.trim()).filter(l => l);
+            let allCards = [];
+
+            // Processar cada linha
+            for (const line of lines) {
+                if (line.includes(':')) {
+                    // Formato completo CC:MES:ANO:CVV
+                    const parts = line.split(':');
+                    if (parts.length === 4) {
+                        allCards.push({
+                            cc: parts[0],
+                            mes: parts[1],
+                            ano: parts[2],
+                            cvv: parts[3],
+                            formato: line
+                        });
+                    }
+                } else if (line.length >= 6) {
+                    // É um BIN, gerar cartões
+                    const generated = generateCards(line, quantity, years);
+                    allCards = allCards.concat(generated);
+                }
+            }
+
+            if (allCards.length === 0) {
+                alert('Nenhum cartão válido foi gerado. Verifique os BINs.');
+                return;
+            }
+
+            resultsDiv.classList.add('show');
+            resultsList.innerHTML = '';
+            progressDiv.classList.add('show');
+
+            let processedCount = 0;
+
+            if (autoProcess) {
+                btnText.innerHTML = `<span class="loader"></span>Processando...`;
+                form.querySelector('.btn-process').disabled = true;
+
+                for (const card of allCards) {
+                    try {
+                        const response = await fetch(`?lista=${card.formato}`);
+                        const data = await response.json();
+
+                        const resultItem = document.createElement('div');
+                        resultItem.className = 'result-item';
+
+                        if (data.status === 'aprovada') {
+                            resultItem.innerHTML = `
+                                <span class="status-approved">✅ APROVADA</span> | 
+                                ${card.cc} | 
+                                Email: ${data.email} | 
+                                CPF: ${data.cpf}
+                            `;
+                        } else if (data.status === 'reprovada') {
+                            resultItem.innerHTML = `
+                                <span class="status-declined">❌ REPROVADA</span> | 
+                                ${card.cc} | 
+                                Motivo: ${data.mensagem}
+                            `;
+                        } else {
+                            resultItem.innerHTML = `
+                                <span class="status-processing">⚠️ ERRO</span> | 
+                                ${card.cc} | 
+                                ${data.erro || 'Erro desconhecido'}
+                            `;
+                        }
+
+                        resultsList.appendChild(resultItem);
+                        processedCount++;
+
+                        // Atualizar barra de progresso
+                        const progress = (processedCount / allCards.length) * 100;
+                        document.querySelector('.progress-bar').style.width = progress + '%';
+
+                    } catch (error) {
+                        const resultItem = document.createElement('div');
+                        resultItem.className = 'result-item';
+                        resultItem.innerHTML = `<span class="status-processing">⚠️ ERRO</span> | ${card.cc} | ${error.message}`;
+                        resultsList.appendChild(resultItem);
+                    }
+
+                    // Pequeno delay para não sobrecarregar
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                btnText.textContent = 'Processamento Concluído!';
+                form.querySelector('.btn-process').disabled = false;
+            } else {
+                // Apenas gerar cartões
+                for (const card of allCards) {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'result-item';
+                    resultItem.innerHTML = `
+                        <strong>${card.cc}</strong> | 
+                        ${card.mes}/${card.ano} | 
+                        CVV: ${card.cvv}
+                    `;
+                    resultsList.appendChild(resultItem);
+                }
+                progressDiv.classList.remove('show');
+            }
+        }
+    </script>
+</body>
+</html>
