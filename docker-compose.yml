@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  script:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: projeto-teste-script
+    volumes:
+      - ./faltaaddapi.php:/app/faltaaddapi.php
+      - ./cookies:/app/cookies
+    environment:
+      - PHP_MEMORY_LIMIT=512M
+      - PHP_MAX_EXECUTION_TIME=300
+    stdin_open: true
+    tty: true
