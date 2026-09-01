@@ -25,18 +25,22 @@ RUN cat > /app/router.php << 'EOF'
 <?php
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
+// Servir arquivos estáticos primeiro
 if ($path === '/' || $path === '/index.html') {
-    include '/app/index.html';
+    header('Content-Type: text/html; charset=utf-8');
+    readfile('/app/index.html');
     exit;
 }
 
-if ($path === '/process' || strpos($path, '.php') !== false || isset($_GET['lista'])) {
+// Processar requisições da API
+if (preg_match('/^\/process|\.php|\?lista/', $path . '?' . $_SERVER['QUERY_STRING'])) {
     include '/app/faltaaddapi.php';
     exit;
 }
 
 // Retornar 404 para outros caminhos
 http_response_code(404);
+header('Content-Type: application/json; charset=utf-8');
 echo json_encode(['erro' => 'Rota não encontrada']);
 exit;
 EOF
