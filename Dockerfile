@@ -20,9 +20,12 @@ RUN chmod +x /app/faltaaddapi.php
 # Expor porta 8000 para servidor web
 EXPOSE 8000
 
-# Criar arquivo de roteamento PHP
+# Criar arquivo de roteamento PHP (CORRIGIDO)
 RUN cat > /app/router.php << 'EOF'
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // Servir arquivos estáticos primeiro
@@ -32,8 +35,8 @@ if ($path === '/' || $path === '/index.html') {
     exit;
 }
 
-// Processar requisições da API
-if (preg_match('/^\/process|\.php|\?lista/', $path . '?' . $_SERVER['QUERY_STRING'])) {
+// Processar requisições da API (EVITAR LOOP INFINITO)
+if (preg_match('/(faltaaddapi\.php|\?lista)/', $_SERVER['REQUEST_URI'])) {
     include '/app/faltaaddapi.php';
     exit;
 }
