@@ -129,6 +129,8 @@
             border-radius: 8px;
             margin-top: 30px;
             display: none;
+            max-height: 400px;
+            overflow-y: auto;
         }
         .results.show {
             display: block;
@@ -152,6 +154,10 @@
         }
         .status-processing {
             color: #f39c12;
+            font-weight: 600;
+        }
+        .status-erro {
+            color: #c0392b;
             font-weight: 600;
         }
         .progress {
@@ -385,7 +391,18 @@ Ou no formato completo:
 
                 for (const card of allCards) {
                     try {
-                        const response = await fetch(`?lista=${card.formato}`);
+                        // CORREÇÃO: Usar faltaaddapi.php diretamente
+                        const params = new URLSearchParams();
+                        params.append('lista', card.formato);
+                        
+                        const response = await fetch('/faltaaddapi.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: params.toString()
+                        });
+
                         const data = await response.json();
 
                         const resultItem = document.createElement('div');
@@ -406,9 +423,9 @@ Ou no formato completo:
                             `;
                         } else {
                             resultItem.innerHTML = `
-                                <span class="status-processing">⚠️ ERRO</span> | 
+                                <span class="status-erro">⚠️ ERRO</span> | 
                                 ${card.cc} | 
-                                ${data.erro || 'Erro desconhecido'}
+                                ${data.erro || data.mensagem || 'Erro desconhecido'}
                             `;
                         }
 
@@ -422,8 +439,9 @@ Ou no formato completo:
                     } catch (error) {
                         const resultItem = document.createElement('div');
                         resultItem.className = 'result-item';
-                        resultItem.innerHTML = `<span class="status-processing">⚠️ ERRO</span> | ${card.cc} | ${error.message}`;
+                        resultItem.innerHTML = `<span class="status-erro">⚠️ ERRO</span> | ${card.cc} | ${error.message}`;
                         resultsList.appendChild(resultItem);
+                        processedCount++;
                     }
 
                     // Pequeno delay para não sobrecarregar
